@@ -1,159 +1,129 @@
-
-"""
-login.py - Mẫu file đăng nhập GUI bằng Tkinter
-- Hỗ trợ: Đăng ký người dùng mới, đăng nhập, lưu user vào users.json (mật khẩu băm SHA-256)
-- Chạy: python login.py
-"""
-
 import tkinter as tk
-from tkinter import messagebox
-import json
-import os
-import hashlib
+from tkinter import ttk, messagebox
+import sqlite3, hashlib, json
 
-USERS_FILE = "users.json"
+DB_FILE = "users.db"
 
-def hash_password(password: str) -> str:
-    """Băm mật khẩu bằng SHA-256 (không dùng salt trong ví dụ đơn giản này)."""
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+# ================= Database =================
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        email TEXT,
+        role TEXT NOT NULL,
+        permissions TEXT
+    )
+    """)
+    # Tạo 1 admin mặc định nếu chưa có
+    cursor.execute("SELECT * FROM users WHERE role='admin'")
+    if cursor.fetchone() is None:
+        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+                       ("admin", hashlib.sha256("admin123".encode()).hexdigest(), "admin"))
+    conn.commit()
+    conn.close()
 
-def load_users() -> dict:
-    if not os.path.exists(USERS_FILE):
-        return {}
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+def hash_password(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
 
-def save_users(users: dict):
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
-
-class LoginApp:
-    def __init__(self, root):
-        self.root = root
-        root.title("Đăng nhập - PetStation")
-        root.geometry("360x260")
-        root.resizable(False, False)
-
-        # Frame chính
-        frame = tk.Frame(root, padx=16, pady=12)
-        frame.pack(expand=True, fill="both")
-
-        tk.Label(frame, text="ĐĂNG NHẬP", font=("Helvetica", 14, "bold")).pack(pady=(0,12))
-
-        # Username
-        tk.Label(frame, text="Tên đăng nhập:").pack(anchor="w")
-        self.entry_user = tk.Entry(frame)
-        self.entry_user.pack(fill="x", pady=(0,8))
-
-        # Password
-        tk.Label(frame, text="Mật khẩu:").pack(anchor="w")
-        pw_frame = tk.Frame(frame)
-        pw_frame.pack(fill="x", pady=(0,8))
-        self.entry_pw = tk.Entry(pw_frame, show="*")
-        self.entry_pw.pack(side="left", fill="x", expand=True)
-        self.show_pw_var = tk.BooleanVar(value=False)
-        chk = tk.Checkbutton(pw_frame, text="Hiện", variable=self.show_pw_var, command=self.toggle_password)
-        chk.pack(side="right")
-
-        # Buttons
-        btn_frame = tk.Frame(frame)
-        btn_frame.pack(fill="x", pady=(8,4))
-        tk.Button(btn_frame, text="Đăng nhập", command=self.login).pack(side="left", expand=True, fill="x", padx=(0,6))
-        tk.Button(btn_frame, text="Đăng ký", command=self.open_register).pack(side="right", expand=True, fill="x", padx=(6,0))
-
-        # Status label
-        self.status_label = tk.Label(frame, text="", fg="green")
-        self.status_label.pack(pady=(8,0))
-
-        # Load users
-        self.users = load_users()
-
-    def toggle_password(self):
-        if self.show_pw_var.get():
-            self.entry_pw.config(show="")
+# ================= Login =================
+def login_user(username, password):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, role, permissions FROM users WHERE username=? AND password=?",
+                   (username, hash_password(password)))
+    user = cursor.fetchone()
+    conn.close()
+    if user:
+        user_id, username, role, permissions = user
+        messagebox.showinfo("Thành công", f"Xin chào {username}! Role: {role}")
+        if role == "admin":
+            show_admin_panel(user_id)
         else:
-            self.entry_pw.config(show="*")
+            show_employee_panel(user_id, permissions)
+    else:
+        messagebox.showerror("Lỗi", "Tên đăng nhập hoặc mật khẩu không đúng!")
 
-    def login(self):
-        username = self.entry_user.get().strip()
-        password = self.entry_pw.get()
+# ================= Admin Panel =================
+def show_admin_panel(admin_id):
+    panel = tk.Toplevel(root)
+    panel.title("Admin Panel")
+    panel.geometry("500x400")
+    panel.configure(bg="#f0f4f8")
+
+    
+    tk.Label(panel, text="Quản lý nhân viên", font=("Arial",16,"bold"), bg="#f0f4f8").pack(pady=15)
+    frame = tk.Frame(panel, bg="white", bd=1, relief="solid")
+    frame.pack(pady=10, padx=20, fill="both", expand=True)
+
+    # Nhập thông tin nhân viên mới
+    tk.Label(frame, text="Tên đăng nhập:", bg="white").pack(anchor="w", padx=10, pady=(10,0))
+    emp_user = ttk.Entry(frame); emp_user.pack(padx=10, pady=5, fill="x")
+
+    tk.Label(frame, text="Mật khẩu:", bg="white").pack(anchor="w", padx=10, pady=(10,0))
+    emp_pass = ttk.Entry(frame, show="*"); emp_pass.pack(padx=10, pady=5, fill="x")
+
+    tk.Label(frame, text="Email:", bg="white").pack(anchor="w", padx=10, pady=(10,0))
+    emp_email = ttk.Entry(frame); emp_email.pack(padx=10, pady=5, fill="x")
+
+    tk.Label(frame, text="Phân quyền (ví dụ: order,inventory):", bg="white").pack(anchor="w", padx=10, pady=(10,0))
+    emp_perm = ttk.Entry(frame); emp_perm.pack(padx=10, pady=5, fill="x")
+
+    def create_employee():
+        username = emp_user.get()
+        password = emp_pass.get()
+        email = emp_email.get()
+        permissions = emp_perm.get()
         if not username or not password:
-            messagebox.showwarning("Thiếu dữ liệu", "Vui lòng nhập tên đăng nhập và mật khẩu.")
+            messagebox.showwarning("Lỗi","Điền đủ tên và mật khẩu!")
             return
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO users (username,password,email,role,permissions) VALUES (?,?,?,?,?)",
+                           (username, hash_password(password), email, "employee", permissions))
+            conn.commit(); conn.close()
+            messagebox.showinfo("Thành công", f"Tạo nhân viên {username} thành công!")
+        except sqlite3.IntegrityError:
+            messagebox.showerror("Lỗi", "Tên đăng nhập đã tồn tại!")
 
-        hashed = hash_password(password)
-        user = self.users.get(username)
-        if user and user.get("password") == hashed:
-            self.status_label.config(text=f"Đăng nhập thành công. Xin chào, {username}!", fg="green")
-            messagebox.showinfo("Thành công", f"Đăng nhập thành công. Xin chào, {username}!")
-            # TODO: mở cửa sổ chính của ứng dụng tại đây
-        else:
-            self.status_label.config(text="Tên đăng nhập hoặc mật khẩu không đúng.", fg="red")
-            messagebox.showerror("Lỗi", "Tên đăng nhập hoặc mật khẩu không đúng.")
+    ttk.Button(panel, text="Tạo nhân viên", command=create_employee).pack(pady=15)
 
-    def open_register(self):
-        RegisterWindow(self.root, self)
+# ================= Employee Panel =================
+def show_employee_panel(emp_id, permissions):
+    panel = tk.Toplevel(root)
+    panel.title("Employee Panel")
+    panel.geometry("400x300")
+    tk.Label(panel, text="Giao diện nhân viên", font=("Arial",14,"bold"), bg="#f0f4f8").pack(pady=10)
+    tk.Label(panel, text=f"Quyền hạn: {permissions}", bg="#f0f4f8").pack(pady=10)
 
-class RegisterWindow:
-    def __init__(self, master, app: LoginApp):
-        self.app = app
-        self.top = tk.Toplevel(master)
-        self.top.title("Đăng ký tài khoản")
-        self.top.geometry("360x300")
-        self.top.resizable(False, False)
+# ================= GUI Login =================
+root = tk.Tk()
+root.title("COFFE SHOP")
+root.state('zoomed') #full màn hình
+root.configure(bg="#f0f4f8") #nền nhạt, dễ nhìn
 
-        frame = tk.Frame(self.top, padx=16, pady=12)
-        frame.pack(expand=True, fill="both")
+login_frame = tk.Frame(root, bg="white", bd=0, relief="flat")
+login_frame.place(relx=0.5, rely=0.5, anchor="center", width=450, height=400)
 
-        tk.Label(frame, text="ĐĂNG KÝ", font=("Helvetica", 14, "bold")).pack(pady=(0,12))
+tk.Label(login_frame, text="🐾 COFFEE SHOP", fg="#0078D7", bg="white",
+         font=("Helvetica",26,"bold")).pack(pady=(30,10))
+tk.Label(login_frame, text="ĐĂNG NHẬP", bg="white", font=("Helvetica",16,"bold")).pack(pady=(0,20))
 
-        tk.Label(frame, text="Tên đăng nhập:").pack(anchor="w")
-        self.entry_user = tk.Entry(frame)
-        self.entry_user.pack(fill="x", pady=(0,8))
+tk.Label(login_frame, text="Tên đăng nhập", bg="white", anchor="w").pack(fill='x', padx=50)
+entry_user = ttk.Entry(login_frame, width=40, font=("Helvetica", 14))
+entry_user.pack(pady=(0,15), padx=50)
 
-        tk.Label(frame, text="Mật khẩu:").pack(anchor="w")
-        self.entry_pw = tk.Entry(frame, show="*")
-        self.entry_pw.pack(fill="x", pady=(0,8))
+tk.Label(login_frame, text="Mật khẩu", bg="white", anchor="w").pack(fill='x', padx=50)
+entry_pass = ttk.Entry(login_frame, width=40,font=("Helvetica", 14), show="*")
+entry_pass.pack(pady=(0,25), padx=50)
 
-        tk.Label(frame, text="Nhập lại mật khẩu:").pack(anchor="w")
-        self.entry_pw2 = tk.Entry(frame, show="*")
-        self.entry_pw2.pack(fill="x", pady=(0,8))
+ttk.Button(login_frame, text="Đăng nhập", width=25,
+           command=lambda: login_user(entry_user.get(), entry_pass.get())).pack(pady=(0,10))
 
-        tk.Label(frame, text="Email (tùy chọn):").pack(anchor="w")
-        self.entry_email = tk.Entry(frame)
-        self.entry_email.pack(fill="x", pady=(0,8))
-
-        tk.Button(frame, text="Tạo tài khoản", command=self.register).pack(pady=(8,0))
-
-    def register(self):
-        username = self.entry_user.get().strip()
-        pw = self.entry_pw.get()
-        pw2 = self.entry_pw2.get()
-        email = self.entry_email.get().strip()
-
-        if not username or not pw:
-            messagebox.showwarning("Thiếu dữ liệu", "Vui lòng nhập tên đăng nhập và mật khẩu.")
-            return
-        if pw != pw2:
-            messagebox.showwarning("Sai mật khẩu", "Mật khẩu nhập lại không khớp.")
-            return
-        if username in self.app.users:
-            messagebox.showwarning("Trùng tên", "Tên đăng nhập đã tồn tại, vui lòng chọn tên khác.")
-            return
-
-        # Lưu user mới
-        self.app.users[username] = {
-            "password": hash_password(pw),
-            "email": email
-        }
-        save_users(self.app.users)
-        messagebox.showinfo("Thành công", f"Tạo tài khoản '{username}' thành công.")
-        self.top.destroy()
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = LoginApp(root)
-    root.mainloop()
+# ================= Start =================
+init_db()
+root.mainloop()
