@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
 import os, sqlite3
 import register
+import admin
 from database import DB_FILE, hash_password
 
 def login_user(username, password, login_frame, root):
@@ -18,15 +19,9 @@ def login_user(username, password, login_frame, root):
         messagebox.showinfo("Thành công", f"Xin chào {username}! Role: {role}")
         login_frame.place_forget()  # Ẩn khung login
         if role == "admin":
-            show_admin_panel(root, user_id)
+            admin.show_admin_panel(root, user_id)
     else:
         messagebox.showerror("Lỗi", "Tên đăng nhập hoặc mật khẩu không đúng!")
-
-def show_admin_panel(root, admin_id):
-    """Hiển thị panel admin trên root"""
-    panel_frame = tk.Frame(root, bg="#f0f4f8")
-    panel_frame.place(relx=0.5, rely=0.5, anchor="center", width=500, height=400)
-    tk.Label(panel_frame, text="Admin Panel", font=("Arial",16,"bold"), bg="#f0f4f8").pack(pady=20)
 
 def show_login(root):
     """Hiển thị khung login"""
@@ -54,12 +49,31 @@ def show_login(root):
     tk.Label(login_frame, text="ĐĂNG NHẬP", bg="white", font=("Helvetica",16,"bold")).pack(pady=(0,20))
 
     tk.Label(login_frame, text="Tên đăng nhập", bg="white", anchor="w").pack(fill='x', padx=50)
-    entry_user = ttk.Entry(login_frame, width=40, font=("Helvetica", 14))
+    entry_user = ttk.Entry(login_frame, width=40, font=("Arial", 12))
     entry_user.pack(pady=(0,15), padx=50)
 
     tk.Label(login_frame, text="Mật khẩu", bg="white", anchor="w").pack(fill='x', padx=50)
-    entry_pass = ttk.Entry(login_frame, width=40,font=("Helvetica", 14), show="*")
-    entry_pass.pack(pady=(0,25), padx=50)
+
+    pass_frame = tk.Frame(login_frame, bg="white")
+    pass_frame.pack(pady=(0,25), padx=50, fill="x")
+
+    entry_pass = ttk.Entry(pass_frame, font=("Arial", 12), show="*")
+    entry_pass.pack(side="left", fill="x", expand=True)
+
+    btn_eye = ttk.Button(pass_frame, text="👁️", width=3)
+    btn_eye.pack(side="right", padx=5)
+
+    # ✅ Xử lý hiện/ẩn mật khẩu
+    showing = False
+    def toggle_password():
+        nonlocal showing
+        showing = not showing
+        if showing:
+            entry_pass.config(show="")
+        else:
+            entry_pass.config(show="*")
+
+    btn_eye.config(command=toggle_password)
 
     style = ttk.Style()
     style.theme_use('clam')
@@ -102,4 +116,4 @@ def show_register(root, login_frame):
                                     on_success=lambda: show_login(root),
                                     show_login_callback=lambda: show_login(root))
 
-    reg_frame.place(relx=0.5, rely=0.5, anchor="center", width=450, height=430)
+    reg_frame.place(relx=0.5, rely=0.5, anchor="center")

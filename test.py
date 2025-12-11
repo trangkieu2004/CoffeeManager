@@ -1,214 +1,213 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-import sqlite3, hashlib, json
-from PIL import Image, ImageTk
-import os
 
 
-DB_FILE = "users.db"
-print("Current working directory:", os.getcwd())
+def show_admin_panel():
+    root = tk.Tk()
+    root.title("HỆ THỐNG QUẢN LÝ QUÁN CÀ PHÊ - ADMIN")
+    root.geometry("1100x650")
+    root.configure(bg="#f0f2f5")
 
-# ================= Database =================
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        email TEXT,
-        role TEXT NOT NULL,
-        permissions TEXT
+    # ================== HEADER ==================
+    header = tk.Frame(root, bg="#6f4e37", height=60)
+    header.pack(fill="x")
+
+    tk.Label(
+        header,
+        text="☕ ADMIN - QUẢN LÝ QUÁN CÀ PHÊ",
+        bg="#6f4e37",
+        fg="white",
+        font=("Helvetica", 18, "bold")
+    ).pack(side="left", padx=20)
+
+    btn_logout = tk.Button(
+        header,
+        text="Đăng xuất",
+        font=("Arial", 11, "bold"),
+        bg="#c0392b",
+        fg="white",
+        cursor="hand2",
+        command=lambda: root.destroy()
     )
-    """)
-    cursor.execute("SELECT * FROM users WHERE role='admin'")
-    if cursor.fetchone() is None:
-        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
-                       ("admin", hashlib.sha256("admin123".encode()).hexdigest(), "admin"))
-    conn.commit()
-    conn.close()
+    btn_logout.pack(side="right", padx=20)
 
-def hash_password(pw):
-    return hashlib.sha256(pw.encode()).hexdigest()
+    # ================== MAIN ==================
+    main_frame = tk.Frame(root, bg="#f0f2f5")
+    main_frame.pack(fill="both", expand=True)
 
-# ================= Login =================
-def login_user(username, password):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, username, role, permissions FROM users WHERE username=? AND password=?",
-                   (username, hash_password(password)))
-    user = cursor.fetchone()
-    conn.close()
+    # ================== SIDEBAR ==================
+    sidebar = tk.Frame(main_frame, bg="#2c3e50", width=220)
+    sidebar.pack(side="left", fill="y")
 
-    if user:
-        user_id, username, role, permissions = user
-        messagebox.showinfo("Thành công", f"Xin chào {username}! Role: {role}")
-        if role == "admin":
-            show_admin_panel(user_id)
-        else:
-            show_employee_panel(user_id, permissions)
-    else:
-        messagebox.showerror("Lỗi", "Tên đăng nhập hoặc mật khẩu không đúng!")
+    content_frame = tk.Frame(main_frame, bg="white")
+    content_frame.pack(side="right", fill="both", expand=True)
 
-# ================= Admin Panel =================
-def show_admin_panel(admin_id):
-    panel = tk.Toplevel(root)
-    panel.title("Admin Panel")
-    panel.geometry("500x400")
-    panel.configure(bg="#f0f4f8")
+    def clear_content():
+        for widget in content_frame.winfo_children():
+            widget.destroy()
 
-    tk.Label(panel, text="Quản lý nhân viên", font=("Arial",16,"bold"), bg="#f0f4f8").pack(pady=15)
-    frame = tk.Frame(panel, bg="white", bd=1, relief="solid")
-    frame.pack(pady=10, padx=20, fill="both", expand=True)
+    # ================== CÁC TRANG ==================
 
-    tk.Label(frame, text="Tên đăng nhập:", bg="white").pack(anchor="w", padx=10)
-    emp_user = ttk.Entry(frame); emp_user.pack(padx=10, pady=5, fill="x")
+    def show_product():
+        clear_content()
+        tk.Label(content_frame, text="QUẢN LÝ SẢN PHẨM", font=("Arial", 18, "bold")).pack(pady=20)
 
-    tk.Label(frame, text="Mật khẩu:", bg="white").pack(anchor="w", padx=10)
-    emp_pass = ttk.Entry(frame, show="*"); emp_pass.pack(padx=10, pady=5, fill="x")
+        table = ttk.Treeview(content_frame, columns=("id", "name", "price", "category"), show="headings")
+        table.pack(fill="both", expand=True, padx=20, pady=10)
 
-    tk.Label(frame, text="Email:", bg="white").pack(anchor="w", padx=10)
-    emp_email = ttk.Entry(frame); emp_email.pack(padx=10, pady=5, fill="x")
+        table.heading("id", text="Mã")
+        table.heading("name", text="Tên sản phẩm")
+        table.heading("price", text="Giá")
+        table.heading("category", text="Loại")
 
-    tk.Label(frame, text="Phân quyền (vd: order,inventory):", bg="white").pack(anchor="w", padx=10)
-    emp_perm = ttk.Entry(frame); emp_perm.pack(padx=10, pady=5, fill="x")
+        table.insert("", "end", values=("SP01", "Cà phê sữa", "25000", "Cafe"))
+        table.insert("", "end", values=("SP02", "Trà đào", "30000", "Trà"))
 
-    def create_employee():
-        username = emp_user.get()
-        password = emp_pass.get()
-        email = emp_email.get()
-        permissions = emp_perm.get()
-        if not username or not password:
-            messagebox.showwarning("Lỗi","Điền đủ tên và mật khẩu!")
-            return
-        try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO users (username,password,email,role,permissions) VALUES (?,?,?,?,?)",
-                           (username, hash_password(password), email, "employee", permissions))
-            conn.commit(); conn.close()
-            messagebox.showinfo("Thành công", f"Tạo nhân viên {username} thành công!")
-        except sqlite3.IntegrityError:
-            messagebox.showerror("Lỗi", "Tên đăng nhập đã tồn tại!")
+    def show_staff():
+        clear_content()
+        tk.Label(content_frame, text="QUẢN LÝ NHÂN VIÊN", font=("Arial", 18, "bold")).pack(pady=20)
 
-    ttk.Button(panel, text="Tạo nhân viên", command=create_employee).pack(pady=15)
+        table = ttk.Treeview(content_frame, columns=("id", "name", "phone", "role"), show="headings")
+        table.pack(fill="both", expand=True, padx=20, pady=10)
 
-# ================= Employee Panel =================
-def show_employee_panel(emp_id, permissions):
-    panel = tk.Toplevel(root)
-    panel.title("Employee Panel")
-    panel.geometry("400x300")
-    tk.Label(panel, text="Giao diện nhân viên", font=("Arial",14,"bold")).pack(pady=10)
-    tk.Label(panel, text=f"Quyền hạn: {permissions}").pack(pady=10)
+        table.heading("id", text="Mã")
+        table.heading("name", text="Họ tên")
+        table.heading("phone", text="SĐT")
+        table.heading("role", text="Chức vụ")
 
+        table.insert("", "end", values=("NV01", "Nguyễn Văn A", "0988888888", "Thu ngân"))
+        table.insert("", "end", values=("NV02", "Trần Thị B", "0977777777", "Phục vụ"))
 
+    def show_customer():
+        clear_content()
+        tk.Label(content_frame, text="QUẢN LÝ KHÁCH HÀNG", font=("Arial", 18, "bold")).pack(pady=20)
 
-# =====================================================
-# ============= FORM ĐĂNG KÝ (REGISTER) ===============
-# =====================================================
+        table = ttk.Treeview(content_frame, columns=("id", "name", "phone", "point"), show="headings")
+        table.pack(fill="both", expand=True, padx=20, pady=10)
 
-def open_register(event=None):
-    login_frame.place_forget()   # Ẩn form login
-    register_frame.place(relx=0.5, rely=0.5, anchor="center")
+        table.heading("id", text="Mã")
+        table.heading("name", text="Họ tên")
+        table.heading("phone", text="SĐT")
+        table.heading("point", text="Điểm")
 
-def back_to_login():
-    register_frame.place_forget()
-    login_frame.place(relx=0.5, rely=0.5, anchor="center")
+        table.insert("", "end", values=("KH01", "Lê Văn C", "0909999999", "120"))
+        table.insert("", "end", values=("KH02", "Phạm Thị D", "0911111111", "85"))
 
-def register_user():
-    username = reg_user.get()
-    password = reg_pass.get()
-    email = reg_email.get()
+    def show_invoice():
+        clear_content()
+        tk.Label(content_frame, text="QUẢN LÝ HÓA ĐƠN", font=("Arial", 18, "bold")).pack(pady=20)
 
-    if username == "" or password == "":
-        messagebox.showwarning("Lỗi", "Không được để trống!")
-        return
+        table = ttk.Treeview(content_frame, columns=("id", "time", "total", "staff"), show="headings")
+        table.pack(fill="both", expand=True, padx=20, pady=10)
 
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO users(username, password, email, role) VALUES (?,?,?,?)",
-                       (username, hash_password(password), email, "employee"))
-        conn.commit()
-        conn.close()
+        table.heading("id", text="Mã HĐ")
+        table.heading("time", text="Thời gian")
+        table.heading("total", text="Tổng tiền")
+        table.heading("staff", text="Nhân viên")
 
-        messagebox.showinfo("Thành công", "Đăng ký thành công!")
-        back_to_login()
+        table.insert("", "end", values=("HD01", "10:20 12/12", "120000", "NV01"))
+        table.insert("", "end", values=("HD02", "11:05 12/12", "98000", "NV02"))
 
-    except sqlite3.IntegrityError:
-        messagebox.showerror("Lỗi", "Tên đăng nhập đã tồn tại!")
+    def show_revenue():
+        clear_content()
 
+        tk.Label(
+            content_frame,
+            text="THỐNG KÊ DOANH THU",
+            font=("Arial", 18, "bold")
+        ).pack(pady=15)
 
+        # ================== KHỐI TỔNG QUAN ==================
+        overview_frame = tk.Frame(content_frame, bg="white")
+        overview_frame.pack(fill="x", padx=20)
 
-# ================= GUI Login =================
-root = tk.Tk()
-root.title("COFFE SHOP")
-root.state('zoomed')
+        def info_box(parent, title, value, color):
+            box = tk.Frame(parent, bg=color, height=90, width=200)
+            box.pack(side="left", padx=10)
+            box.pack_propagate(False)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-img_path = os.path.join(BASE_DIR, "img", "taixuong.jpg")
+            tk.Label(box, text=title, bg=color, fg="white", font=("Arial", 11)).pack(pady=(12, 2))
+            tk.Label(box, text=value, bg=color, fg="white", font=("Arial", 18, "bold")).pack()
 
-print("Đường dẫn ảnh:", img_path)
+        info_box(overview_frame, "Hôm nay", "1.250.000 ₫", "#27ae60")
+        info_box(overview_frame, "Tháng này", "32.800.000 ₫", "#2980b9")
+        info_box(overview_frame, "Năm nay", "215.500.000 ₫", "#8e44ad")
 
-if os.path.exists(img_path):
-    bg_image = Image.open(img_path)
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    bg_image = bg_image.resize((screen_width, screen_height))
-    bg_photo = ImageTk.PhotoImage(bg_image)
-    bg_label = tk.Label(root, image=bg_photo)
-    bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        # ================== BẢNG TOP SẢN PHẨM ==================
+        tk.Label(
+            content_frame,
+            text="TOP SẢN PHẨM BÁN CHẠY",
+            font=("Arial", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(20, 5))
 
-# ---------------- LOGIN FRAME ----------------
-login_frame = tk.Frame(root, bg="white")
-login_frame.place(relx=0.5, rely=0.5, anchor="center", width=450, height=400)
+        product_table = ttk.Treeview(
+            content_frame,
+            columns=("name", "quantity", "revenue"),
+            show="headings",
+            height=5
+        )
+        product_table.pack(fill="x", padx=20)
 
-tk.Label(login_frame, text="🐾 COFFEE SHOP", fg="#0078D7", bg="white",
-         font=("Helvetica",26,"bold")).pack(pady=(30,10))
-tk.Label(login_frame, text="ĐĂNG NHẬP", bg="white", font=("Helvetica",16,"bold")).pack(pady=(0,20))
+        product_table.heading("name", text="Sản phẩm")
+        product_table.heading("quantity", text="Số lượng")
+        product_table.heading("revenue", text="Doanh thu")
 
-tk.Label(login_frame, text="Tên đăng nhập", bg="white").pack()
-entry_user = ttk.Entry(login_frame, width=40)
-entry_user.pack(pady=10)
+        product_table.insert("", "end", values=("Cà phê sữa", "120", "3.000.000 ₫"))
+        product_table.insert("", "end", values=("Trà đào", "95", "2.850.000 ₫"))
+        product_table.insert("", "end", values=("Bạc xỉu", "70", "1.750.000 ₫"))
 
-tk.Label(login_frame, text="Mật khẩu", bg="white").pack()
-entry_pass = ttk.Entry(login_frame, show="*", width=40)
-entry_pass.pack(pady=10)
+        # ================== BẢNG TOP NHÂN VIÊN ==================
+        tk.Label(
+            content_frame,
+            text="TOP NHÂN VIÊN BÁN HÀNG",
+            font=("Arial", 14, "bold")
+        ).pack(anchor="w", padx=20, pady=(20, 5))
 
-ttk.Button(login_frame, text="Đăng nhập",
-           command=lambda: login_user(entry_user.get(), entry_pass.get())
-           ).pack(pady=10)
+        staff_table = ttk.Treeview(
+            content_frame,
+            columns=("name", "invoice", "revenue"),
+            show="headings",
+            height=5
+        )
+        staff_table.pack(fill="x", padx=20)
 
-# Link Đăng ký
-reg_link = tk.Label(login_frame, text="Bạn chưa có tài khoản? Đăng ký",
-                    bg="white", fg="blue", cursor="hand2")
-reg_link.pack()
-reg_link.bind("<Button-1>", open_register)
+        staff_table.heading("name", text="Nhân viên")
+        staff_table.heading("invoice", text="Số hóa đơn")
+        staff_table.heading("revenue", text="Doanh thu")
+
+        staff_table.insert("", "end", values=("Nguyễn Văn A", "45", "6.200.000 ₫"))
+        staff_table.insert("", "end", values=("Trần Thị B", "32", "4.800.000 ₫"))
 
 
-# ---------------- REGISTER FRAME ----------------
-register_frame = tk.Frame(root, bg="white", width=450, height=450)
 
-tk.Label(register_frame, text="ĐĂNG KÝ TÀI KHOẢN",
-         bg="white", fg="#0078D7", font=("Helvetica",20,"bold")).pack(pady=20)
+    # ================== SIDEBAR BUTTON ==================
 
-tk.Label(register_frame, text="Tên đăng nhập", bg="white").pack()
-reg_user = ttk.Entry(register_frame, width=40)
-reg_user.pack(pady=10)
+    menu_buttons = [
+        ("📦 Quản lý Sản phẩm", show_product),
+        ("👨‍💼 Quản lý Nhân viên", show_staff),
+        ("👥 Quản lý Khách hàng", show_customer),
+        ("🧾 Quản lý Hóa đơn", show_invoice),
+        ("📊 Thống kê Doanh thu", show_revenue),
+    ]
 
-tk.Label(register_frame, text="Mật khẩu", bg="white").pack()
-reg_pass = ttk.Entry(register_frame, show="*", width=40)
-reg_pass.pack(pady=10)
+    for text, cmd in menu_buttons:
+        tk.Button(
+            sidebar,
+            text=text,
+            font=("Arial", 12, "bold"),
+            bg="#34495e",
+            fg="white",
+            relief="flat",
+            height=2,
+            cursor="hand2",
+            command=cmd
+        ).pack(fill="x", padx=10, pady=8)
 
-tk.Label(register_frame, text="Email", bg="white").pack()
-reg_email = ttk.Entry(register_frame, width=40)
-reg_email.pack(pady=10)
+    show_product()  # Mặc định mở sản phẩm khi chạy
 
-ttk.Button(register_frame, text="Đăng ký", command=register_user).pack(pady=20)
-ttk.Button(register_frame, text="Quay lại đăng nhập", command=back_to_login).pack()
+    root.mainloop()
 
-# ================= Start =================
-init_db()
-root.mainloop()
 
+# ================== CHẠY TRỰC TIẾP ==================
+if __name__ == "__main__":
+    show_admin_panel()
